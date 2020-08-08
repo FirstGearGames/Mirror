@@ -96,8 +96,8 @@ namespace Mirror.Tests
         static string[] baseClassArray = new string[]
         {
             "NetworkBehaviour",
-            //"MonoBehaviour",
-            //"ClassWithNoConstructor" // non unity class
+            "MonoBehaviour",
+            "ClassWithNoConstructor" // non unity class
         };
 
         static string Merge(IEnumerable<string> strs)
@@ -124,6 +124,8 @@ namespace {NameSpace}
         {
             string mergedFunctions = Merge(functions);
             string mergedTests = Merge(tests);
+            string setupBody = SetupForBaseClass(baseClass);
+            string teardownBody = TearDownForBaseClass(baseClass);
 
             return $@"
     public class {AttributeBehaviourName(baseClass)} : {baseClass}
@@ -152,14 +154,13 @@ namespace {NameSpace}
         [OneTimeSetUp]
         public void SetUp()
         {{
-            go = new GameObject();
-            behaviour = go.AddComponent<{AttributeBehaviourName(baseClass)}>();
+            {setupBody}
         }}
 
         [OneTimeTearDown]
         public void TearDown()
         {{
-            UnityEngine.Object.DestroyImmediate(go);
+            {teardownBody}
             NetworkClient.connectState = ConnectState.None;
             NetworkServer.active = false;
         }}
@@ -167,6 +168,50 @@ namespace {NameSpace}
         {mergedTests}
     }}";
         }
+
+        static string SetupForBaseClass(string baseClass)
+        {
+            switch (baseClass)
+            {
+                case "NetworkBehaviour":
+                case "MonoBehaviour":
+                    return SetupBodyMonoBehaviour(baseClass);
+                default:
+                    return SetupBodyClass(baseClass);
+            }
+        }
+
+        static string TearDownForBaseClass(string baseClass)
+        {
+            switch (baseClass)
+            {
+                case "NetworkBehaviour":
+                case "MonoBehaviour":
+                    return TearDownBodyMonoBehaviour();
+                default:
+                    return TearDownBodyClass();
+            }
+        }
+
+        static string SetupBodyMonoBehaviour(string baseClass)
+        {
+            return
+         $@"go = new GameObject();
+            behaviour = go.AddComponent<{AttributeBehaviourName(baseClass)}>();";
+        }
+        static string TearDownBodyMonoBehaviour()
+        {
+            return "UnityEngine.Object.DestroyImmediate(go);";
+        }
+        static string SetupBodyClass(string baseClass)
+        {
+            return $@"behaviour = new {AttributeBehaviourName(baseClass)}();";
+        }
+        static string TearDownBodyClass()
+        {
+            return "";
+        }
+
 
         static string AttributeBehaviourName(string baseClass)
         {
@@ -180,6 +225,7 @@ namespace {NameSpace}
         {
             return $"{attribute}_{returnType}_out_Function";
         }
+
 
         static string AttributeFunction(string attribute, string returnType)
         {
